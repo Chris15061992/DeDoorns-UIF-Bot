@@ -1,38 +1,114 @@
-import logging from aiogram import Bot, Dispatcher, types, executor from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InputFile from aiogram.dispatcher.filters import Text from aiogram.contrib.middlewares.logging import LoggingMiddleware import os
+import logging
+import os
+from aiogram import Bot, Dispatcher, types, executor
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.dispatcher.filters import Text
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
-API_TOKEN = os.getenv("BOT_TOKEN")  # Load from environment ADMIN_ID = 5105714334  # @TheMemeMinister
+# Bot token and admin ID (replace with your actual bot token and Telegram user ID)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = 5105714334  # @TheMemeMinister
 
-logging.basicConfig(level=logging.INFO)
+# Initialize bot and dispatcher
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
+dp.middleware.setup(LoggingMiddleware())
 
-bot = Bot(token=API_TOKEN) dp = Dispatcher(bot) dp.middleware.setup(LoggingMiddleware())
+# Keyboard for contact option
+keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+keyboard.add(
+    KeyboardButton("Submit UIF Claim 📄"),
+    KeyboardButton("Pay Assistant Fee 💳")
+)
+keyboard.add(
+    KeyboardButton("Get Help via WhatsApp 📱")
+)
 
-Multilingual welcome
+# Welcome message
+WELCOME_MESSAGE = """\
+🇿🇦 *Welcome to the De Doorns UIF Assistant Bot!*
 
-WELCOME_TEXT = { 'en': "👋 Welcome to the UIF Assistant Bot! Please pay a R50 once-off fee for full help.", 'af': "👋 Welkom by die UIF Assistent Bot! Betaal asseblief 'n eenmalige fooi van R50.", 'xh': "👋 Wamkelekile kwi-UIF Uncedo Bot! Nceda uhlawule imali eyi-R50 kube kanye.", 'zu': "👋 Siyakwamukela ku-UIF Usizo Bot! Sicela ukhokhe u-R50 kube kanye.", 'st': "👋 Rea u amohela ho UIF Bot ea Thuso! Ka kopo lefe R50 hang feela." }
+This bot helps farm workers apply for UIF and prepare all needed documents.
 
-Basic payment instruction
+Choose an option below to begin:
 
-PAYMENT_INSTRUCTIONS = ( "\U0001F4B3 UIF Assistant Fee – R50 (Once-Off)\n\n" "You can pay using the following methods:\n" "✅ 1Voucher\n✅ OTT Voucher\n✅ Shoprite / Checkers\n✅ PEP Money Transfer\n✅ Capitec PaySharp or Immediate EFT\n\n" "\U0001F4E4 Send the voucher code here\n" "OR\n" "\U0001F4F8 Upload a clear photo of your voucher or payment confirmation\n\n" "Your payment will be verified and assistance begins after confirmation.\n\n" "\U0001F4B5 Capitec Account for EFT: +27 71 636 2638\n" "\U0001F4DE WhatsApp Help: +27 71 636 2638" )
+💡 *UIF Account Creation Only* — R20  
+📄 *Account + Document Help* — R40  
+🧾 *Full Assistance (Account + Docs + Application)* — R70
 
-Markup
+For WhatsApp help, message:  
+📱 *+27 71 636 2638*
 
-lang_keyboard = ReplyKeyboardMarkup(resize_keyboard=True) lang_keyboard.add(KeyboardButton("English"), KeyboardButton("Afrikaans")) lang_keyboard.add(KeyboardButton("isiXhosa"), KeyboardButton("isiZulu")) lang_keyboard.add(KeyboardButton("Sesotho"))
+_Created for farm workers, by farm workers._
+"""
 
-@dp.message_handler(commands=['start']) async def send_welcome(message: types.Message): await message.reply("🌐 Please choose your language:", reply_markup=lang_keyboard)
+# Updated payment tiers
+PAYMENT_INSTRUCTIONS = """\
+💳 *Payment Options:*
 
-@dp.message_handler(lambda m: m.text in ["English", "Afrikaans", "isiXhosa", "isiZulu", "Sesotho"]) async def language_chosen(message: types.Message): lang_map = { "English": 'en', "Afrikaans": 'af', "isiXhosa": 'xh', "isiZulu": 'zu', "Sesotho": 'st' } code = lang_map[message.text] await message.answer(WELCOME_TEXT[code]) await message.answer(PAYMENT_INSTRUCTIONS, parse_mode="Markdown")
+🔹 *R20* — *UIF Account Creation Only*  
+🔹 *R40* — *Account + Document Gathering*  
+🔹 *R70* — *Full UIF Assistance* (account + docs + application)
 
-@dp.message_handler(content_types=['text', 'photo']) async def handle_payment_submission(message: types.Message): user = message.from_user text = f"\n👤 New Payment Submission\n" text += f"Name: {user.full_name}\nPhone: {user.id}\n" if message.text: text += f"Voucher Code or Reference: {message.text}" await bot.send_message(ADMIN_ID, text, parse_mode='Markdown')
+📌 *Voucher Methods Accepted:*
+- 1Voucher  
+- OTT Voucher  
+- Shoprite/Checkers  
+- PEP Money Transfer  
 
-if message.photo:
-    file_id = message.photo[-1].file_id
-    await bot.send_photo(ADMIN_ID, file_id, caption=f"Voucher/payment image from {user.full_name} ({user.id})")
+🎯 Send voucher PIN or proof to WhatsApp: *+27 71 636 2638*
 
-await message.answer("⏳ Thank you. Your voucher or payment has been received and is being verified.")
+📌 *EFT or PaySharp (Capitec):*
+- Account Number (Cell): *+27 71 636 2638*  
+- Bank: Capitec  
+- Recipient: *Payment Assessor*
 
-Optional: Admin command to mark user as paid
+Once payment is received, we begin your process.
+"""
 
-@dp.message_handler(commands=['mark_paid']) async def mark_user_paid(message: types.Message): if message.from_user.id != ADMIN_ID: return await message.reply("Unauthorized") try: parts = message.text.split() if len(parts) < 2: return await message.reply("Usage: /mark_paid <telegram_user_id>") user_id = int(parts[1]) await bot.send_message(user_id, "✅ Your payment has been confirmed. Thank you! You will now receive full UIF assistance.") await message.reply("User notified.") except Exception as e: await message.reply(f"Error: {e}")
+# WhatsApp help message
+WHATSAPP_HELP = """\
+📱 For WhatsApp assistance:
 
-if name == 'main': executor.start_polling(dp, skip_updates=True)
+Send your *Name*, *Surname*, and *Cell Number* to:
 
+👉 *+27 71 636 2638*
+
+We will assist you manually via WhatsApp after verifying your payment.
+
+💬 Payment still applies before any support is provided.
+"""
+
+# /start handler
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
+    await message.answer(WELCOME_MESSAGE, parse_mode="Markdown", reply_markup=keyboard)
+
+# Claim process handler
+@dp.message_handler(Text(equals="Submit UIF Claim 📄"))
+async def handle_claim(message: types.Message):
+    await message.reply("Please enter your *Full Name* and *Cell Number* (same as your Telegram number).", parse_mode="Markdown")
+    await bot.send_message(
+        ADMIN_ID,
+        f"📝 New claimant started process:\nFrom: {message.from_user.full_name}\nTelegram ID: {message.from_user.id}"
+    )
+
+# Payment info handler
+@dp.message_handler(Text(equals="Pay Assistant Fee 💳"))
+async def handle_payment(message: types.Message):
+    await message.reply(PAYMENT_INSTRUCTIONS, parse_mode="Markdown")
+
+# WhatsApp help handler
+@dp.message_handler(Text(equals="Get Help via WhatsApp 📱"))
+async def handle_whatsapp(message: types.Message):
+    await message.reply(WHATSAPP_HELP, parse_mode="Markdown")
+
+# Default fallback
+@dp.message_handler()
+async def default_response(message: types.Message):
+    await message.reply("Please use the buttons below to choose an option.", reply_markup=keyboard)
+
+# Main entry point
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    executor.start_polling(dp, skip_updates=True)
