@@ -1,40 +1,79 @@
-import logging from aiogram import Bot, Dispatcher, types, executor from aiogram.types import ReplyKeyboardMarkup, KeyboardButton from aiogram.dispatcher.filters import Text import os from dotenv import load_dotenv
-
-Load environment variables
+import logging
+from aiogram import Bot, Dispatcher, types, executor
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.dispatcher.filters import Text
+import os
+from dotenv import load_dotenv
 
 load_dotenv()
 
-API_TOKEN = os.getenv("BOT_TOKEN") ADMIN_ID = 5105714334  # @TheMemeMinister Telegram numeric ID
+API_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_CHAT_ID = 5105714334  # @TheMemeMinister Telegram ID
 
 logging.basicConfig(level=logging.INFO)
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
-bot = Bot(token=API_TOKEN) dp = Dispatcher(bot)
+# Language Selection Keyboard
+language_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+language_kb.add(KeyboardButton("🇿🇦 English"), KeyboardButton("🇿🇦 Afrikaans"), KeyboardButton("🇱🇸 Sesotho"))
 
-Keyboards
-
-payment_kb = ReplyKeyboardMarkup(resize_keyboard=True) payment_kb.add("Pay R20 - Account Only", "Pay R40 - Account + Docs", "Pay R70 - Full Assistance")
-
-main_kb = ReplyKeyboardMarkup(resize_keyboard=True) main_kb.add("Start UIF Claim", "Help via WhatsApp")
-
-@dp.message_handler(commands=['start']) async def send_welcome(message: types.Message): await message.answer("👋 Welcome to the DeDoorns UIF Choppa Bot!\nPlease choose an option below:", reply_markup=main_kb)
-
-@dp.message_handler(Text(equals="Help via WhatsApp")) async def whatsapp_info(message: types.Message): await message.answer("📲 For help via WhatsApp, contact: +27716362638")
-
-@dp.message_handler(Text(equals="Start UIF Claim")) async def start_claim(message: types.Message): await message.answer("💳 Please select your payment option:", reply_markup=payment_kb)
-
-@dp.message_handler(lambda message: message.text.startswith("Pay R")) async def handle_payment_selection(message: types.Message): option = message.text if "R20" in option: tier = "Account Creation Only" amount = "R20" elif "R40" in option: tier = "Account + Documents" amount = "R40" elif "R70" in option: tier = "Full Assistance" amount = "R70" else: await message.answer("❌ Invalid selection. Try again.") return
-
-await message.answer(
-    f"✅ You selected: {tier}\n💰 Please pay {amount} via one of the following methods:\n\n"
-    "1️⃣ *Capitec Immediate EFT / PaySharp:*\nAccount Number: +27716362638\nBank: Capitec\n\n"
-    "2️⃣ *Voucher Payment (Flash Supported):*\nUse one of the following voucher types: 1Voucher, OTT, PEP, Shoprite\n\n"
-    "Once done, reply with your *Name*, *Surname*, *Telegram Number*, and *Voucher Code* if used."
+# Payment Options
+payment_kb = ReplyKeyboardMarkup(resize_keyboard=True)
+payment_kb.add(
+    KeyboardButton("R20 - Online Account Creation"),
+    KeyboardButton("R40 - Account + Docs Prep"),
+    KeyboardButton("R70 - Full Application Assistance")
 )
 
-@dp.message_handler(lambda message: len(message.text.split()) >= 3) async def collect_info(message: types.Message): text = message.text user = message.from_user info = f"📥 New UIF Claim Request\n\n" info += f"👤 Name & Surname: {text}\n" info += f"📱 Telegram Number: +{user.id}\n" info += f"🔗 Username: @{user.username}\n"
+@dp.message_handler(commands=["start"])
+async def send_welcome(message: types.Message):
+    await message.reply("Welkom! Please choose your language:\nKies jou taal:", reply_markup=language_kb)
 
-await bot.send_message(ADMIN_ID, info)
-await message.answer("✅ Thank you. We’ve received your details and will process your request after verifying your payment. For urgent help, WhatsApp us at +27716362638")
+@dp.message_handler(lambda message: message.text in ["🇿🇦 English", "🇿🇦 Afrikaans", "🇱🇸 Sesotho"])
+async def language_selected(message: types.Message):
+    await message.reply("Please choose your assistance package:", reply_markup=payment_kb)
 
-if name == 'main': executor.start_polling(dp, skip_updates=True)
+@dp.message_handler(Text(startswith="R20"))
+async def handle_r20(message: types.Message):
+    await handle_payment(message, 20, "Online Account Creation")
 
+@dp.message_handler(Text(startswith="R40"))
+async def handle_r40(message: types.Message):
+    await handle_payment(message, 40, "Account Creation + Document Prep")
+
+@dp.message_handler(Text(startswith="R70"))
+async def handle_r70(message: types.Message):
+    await handle_payment(message, 70, "Full Application Assistance")
+
+async def handle_payment(message, amount, package):
+    payment_instructions = (
+        f"💳 To continue with **{package}**, please pay R{amount} using one of the following methods:\n\n"
+        "📍 *Flash Voucher (1Voucher / OTT / Shoprite / PEP)*\n"
+        "➡️ Send the voucher code here.\n\n"
+        "🏦 *Capitec EFT or Paysharp:*\n"
+        "`Account Number:` +27716362638\n\n"
+        "📲 Or contact via WhatsApp after payment: wa.me/27716362638\n\n"
+        "Once paid, reply with your *Full Name* and *Cell Number*."
+    )
+    await message.reply(payment_instructions, parse_mode="Markdown")
+
+@dp.message_handler()
+async def collect_user_info(message: types.Message):
+    full_name = message.text.strip()
+    user_id = message.from_user.id
+    phone_number = message.from_user.username or "No username"
+
+    notify_admin = (
+        f"📥 New Claim Submission\n\n"
+        f"👤 Name: {full_name}\n"
+        f"📞 Telegram ID: {user_id}\n"
+        f"🔗 Telegram: @{message.from_user.username or 'N/A'}\n"
+        f"💬 Preferred WhatsApp: +{full_name.split()[-1] if full_name[-1].isdigit() else 'Number not provided'}"
+    )
+
+    await bot.send_message(chat_id=ADMIN_CHAT_ID, text=notify_admin)
+    await message.reply("✅ Thank you. We will verify your payment and get back to you shortly via WhatsApp or Telegram.")
+
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
