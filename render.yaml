@@ -1,0 +1,10 @@
+services:
+  - type: worker
+    name: dedoorns-uif-bot
+    env: python
+    repo: https://github.com/Chris15061992/DeDoorns-UIF-Bot
+    branch: main
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
